@@ -1,0 +1,12 @@
+{
+  "name": "ibooks2zotero",
+  "version": "0.4.0",
+  "private": true,
+  "description": "Import Apple Books PDF pen strokes and highlights as native Zotero annotations",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test tests/*.test.cjs",
+    "build": "bash scripts/build.sh",
+    "demo": "bash scripts/create-demo.sh"
+  }
+}

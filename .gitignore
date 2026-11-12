@@ -1,0 +1,8 @@
+.DS_Store
+dist/
+.build/
+src/native/books-parser
+__pycache__/
+*.pyc
+demo/*.json
+node_modules/
