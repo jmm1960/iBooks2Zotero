@@ -10,4 +10,5 @@ if [ -x src/native/books-parser ]; then
   src/native/books-parser parse demo/annotated.pdf .build/demo-parsed.json
   src/native/books-parser inspect demo/clean.pdf .build/demo-clean.json 0,1,2
   node scripts/check-demo.cjs .build/demo-parsed.json .build/demo-clean.json
+  node scripts/create-demo-bundle.cjs
 fi

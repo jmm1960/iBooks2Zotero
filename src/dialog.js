@@ -56,11 +56,11 @@ window.addEventListener('DOMContentLoaded',()=>{
  run(async()=>{await loadTargetRange();status(t('chooseHint'));});
  $('parse').onclick=()=>run(async()=>{
   const path=await api.pick(window);if(!path)return;status(t('parsing'));source=null;prepared=null;matchedID=null;availability();
-  const parsed=JSON.parse(JSON.stringify(await api.parse(path)));if(!parsed.pages.length)throw Error(t('error.noAnnotations'));source=parsed;source.sourceName=path.split('/').pop();$('source').textContent=source.sourceName;$('source').title=source.sourceName;$('parse').textContent=t('changeSource');
+  const parsed=JSON.parse(JSON.stringify(await api.parse(path,target())));if(!parsed.pages.length)throw Error(t('error.noAnnotations'));source=parsed;source.sourceName=path.split('/').pop();$('source').textContent=source.sourceName;$('source').title=source.sourceName;$('parse').textContent=t('changeSource');
   recalculate();if(!prepared)throw Error(t('error.grouping'));status(t('checking'));
-  await api.validate(target(),selectedSource());matchedID=target();status(source.warnings.length?t('matchedWarnings',{warnings:source.warnings.join('; ')}):t('matched'));
+  await api.validate(target(),selectedSource());matchedID=target();status(source.legacy?t('legacyReady'):source.warnings.length?t('matchedWarnings',{warnings:source.warnings.join('; ')}):t('matched'));
  });
- $('target').onchange=()=>run(async()=>{matchedID=null;await loadTargetRange();await checkSelection();status(source?t('targetMatched'):t('targetChanged'));});
+ $('target').onchange=()=>run(async()=>{matchedID=null;await loadTargetRange();await checkSelection();status(source?.legacy?t('legacyReady'):source?t('targetMatched'):t('targetChanged'));});
  for(const id of ['start','end'])$(id).addEventListener('change',()=>run(async()=>{await checkSelection();status(t('rangeChanged'));}));
  for(const id of ['vertical','horizontal','order'])$(id).addEventListener('change',()=>{recalculate();if(prepared)status(t('groupsChanged'));});
  $('defaults').onclick=()=>{$('vertical').value='3.7';$('horizontal').value='8';$('order').value='vertical-horizontal';recalculate();status(t('defaultsRestored'));};

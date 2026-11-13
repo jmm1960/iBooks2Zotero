@@ -24,3 +24,14 @@ The fixture exercises the specific archive structure supported by the parser. It
 - Actual English Zotero UI: source parsing, dynamic counts, page dropdown, and clear confirmation were checked. Clear was cancelled; all 11 existing demo annotations remained.
 - Chinese UI and clear confirmation were checked with an isolated copy of the same bootstrap code using a Chinese locale resolver; the actual installed dialog resources were used. This did not modify Zotero's language setting.
 - New English/Chinese import screenshots are `import-preview-en.jpg` and `import-preview-zh.jpg`. They show the original fixture in real Zotero windows.
+
+## 0.5.0 annotation ZIPs
+
+- Thirteen Node regression tests pass, including full bundle data round trips, regrouping, legacy provenance retention, invalid metadata, path/reference checks, and localization.
+- Real Zotero ZIP APIs exported the original demo from parsed PDF data and read the resulting ZIP back. Strokes, notes/comments, page fingerprints, and raw Apple archives matched exactly. The ZIP had 14 files, including two transparent previews, and was about 34 KiB.
+- Imported the restored data into a new, dedicated demo PDF attachment: 11 native annotations were saved.
+- Read the earlier private extraction ZIP with its enclosing directory through the actual ZIP reader and native legacy adapter: 2550 strokes and 74 groups. A local coordinate comparison against the original PDF extraction found a maximum floating-point difference below 1e-9 PDF points. Private input files are not included in the repository.
+- Two malformed/unsupported ZIPs and a mismatched target PDF were rejected. Cancelling legacy edition confirmation preserved all target annotation IDs.
+- Export PNGs are approximate stroke previews, not original PDF appearance images. Original archives/drawing data remain intact; no book page backgrounds are included in the ZIP.
+- The native helper cache now uses immutable content hashes to avoid repeatedly overwriting an executable cached by macOS code-signature validation.
+- The 0.5.0 add-on installed successfully. The final file-picker/button visual pass could not be completed because desktop window control became unavailable; the actual ZIP read/write and import APIs were exercised successfully in Zotero before that interruption.

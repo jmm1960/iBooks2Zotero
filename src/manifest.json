@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "iBooks2Zotero",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Import Apple Books PDF handwriting, highlights, and notes as native Zotero annotations. macOS.",
   "author": "iBooks2Zotero contributors",
   "applications": {

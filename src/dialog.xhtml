@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en">
 <head>
  <meta charset="utf-8"/><title>iBooks2Zotero</title>
- <link rel="stylesheet" href="dialog.css?v=0.4.0"/>
+ <link rel="stylesheet" href="dialog.css?v=0.5.0"/>
  <script src="i18n.js"></script><script src="core.js"></script><script src="select-control.js"></script><script defer="defer" src="dialog.js"></script>
 </head>
 <body>
@@ -12,8 +12,8 @@
   <select id="target" aria-label="Target PDF" data-i18n-aria-label="target"></select><span id="existing" class="count"></span>
  </div>
  <div class="file-row">
-  <span class="field-label" data-i18n="source">Source PDF</span><span id="source" class="source-name" data-i18n="noFile" title="Choose a PDF exported from Apple Books" data-i18n-title="pickSource">No file selected</span>
-  <button id="parse" data-i18n="chooseSource">Choose source PDF</button>
+  <span class="field-label" data-i18n="source">Source</span><span id="source" class="source-name" data-i18n="noFile" title="Choose an annotated PDF or annotation ZIP" data-i18n-title="pickSource">No file selected</span>
+  <button id="parse" data-i18n="chooseSource">Choose source</button>
  </div>
  <div class="settings-row">
   <div class="range-fields"><label for="start" data-i18n="pages">Pages</label><input id="start" aria-label="Start page" data-i18n-aria-label="startPage" title="Start page in PDF page order" data-i18n-title="startHelp" type="number" min="1" step="1" value="1"/><span class="separator-word" data-i18n="to">to</span><input id="end" aria-label="End page" data-i18n-aria-label="endPage" title="End page, inclusive" data-i18n-title="endHelp" type="number" min="1" step="1" value="1"/><span id="total" class="count">/ —</span></div>
@@ -24,8 +24,8 @@
  </div>
 </section>
 <main class="preview">
- <div class="preview-toolbar"><span id="summary" data-i18n="summaryEmpty">Parse a source PDF to preview groups</span><div class="preview-tools"><select id="page" aria-label="Preview page" data-i18n-aria-label="previewPage" disabled="disabled"></select><select id="zoom" aria-label="Preview zoom" data-i18n-aria-label="previewZoom"><option value="fit" data-i18n="fitPage">Fit page</option><option value="actual">100%</option><option value="width" data-i18n="fitWidth">Fit width</option></select><label class="toggle"><input id="boxes" type="checkbox" checked="checked"/><span data-i18n="boxes">Group outlines</span></label><button id="export" class="icon-button" title="Export a standalone bundle of all source annotations" aria-label="Export annotation bundle" data-i18n-title="exportHelp" data-i18n-aria-label="export" disabled="disabled"><img src="chrome://zotero/skin/16/universal/export.svg" alt=""/></button></div></div>
- <div id="canvas-wrap" data-zoom="fit"><p id="empty" data-i18n="chooseHint">Choose an annotated source PDF to parse it automatically.</p><canvas id="canvas" width="700" height="930" hidden="hidden"></canvas></div>
+ <div class="preview-toolbar"><span id="summary" data-i18n="summaryEmpty">Choose a PDF or ZIP to preview groups</span><div class="preview-tools"><select id="page" aria-label="Preview page" data-i18n-aria-label="previewPage" disabled="disabled"></select><select id="zoom" aria-label="Preview zoom" data-i18n-aria-label="previewZoom"><option value="fit" data-i18n="fitPage">Fit page</option><option value="actual">100%</option><option value="width" data-i18n="fitWidth">Fit width</option></select><label class="toggle"><input id="boxes" type="checkbox" checked="checked"/><span data-i18n="boxes">Group outlines</span></label><button id="export" class="icon-button" title="Export all source annotations as a standalone ZIP" aria-label="Export annotation ZIP" data-i18n-title="exportHelp" data-i18n-aria-label="export" disabled="disabled"><img src="chrome://zotero/skin/16/universal/export.svg" alt=""/></button></div></div>
+ <div id="canvas-wrap" data-zoom="fit"><p id="empty" data-i18n="chooseHint">Choose an annotated PDF or ZIP to parse it automatically.</p><canvas id="canvas" width="700" height="930" hidden="hidden"></canvas></div>
 </main>
 <footer>
  <button id="clear" class="danger" title="Delete native Zotero annotations only within the selected PDF page range" data-i18n="clear" data-i18n-title="clearHelp">Clear selected pages</button>

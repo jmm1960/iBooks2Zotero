@@ -8,6 +8,7 @@ function uninstall() {}
 async function startup({rootURI}) {
   pluginRoot=rootURI;
   Services.scriptloader.loadSubScript(rootURI+'i18n.js',globalThis);
+  Services.scriptloader.loadSubScript(rootURI+'bundle.js',globalThis);
   chromeHandle=Cc['@mozilla.org/addons/addon-manager-startup;1'].getService(Ci.amIAddonManagerStartup).registerChrome(Services.io.newURI(rootURI+'manifest.json'),[['content','books-notes','']]);
   for(const win of Zotero.getMainWindows())onMainWindowLoad({window:win});
 }
@@ -42,23 +43,93 @@ function candidates(win) {
 async function helper(mode,path,indices) {
   if(!Zotero.isMac)throw Error(t('error.macOnly'));
   const cache=PathUtils.join(Zotero.Profile.dir,'apple-books-notes');await IOUtils.makeDirectory(cache,{ignoreExisting:true});
-  const executable=PathUtils.join(cache,'books-parser-0.1.0');
   const buffer=await new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open('GET',pluginRoot+'native/books-parser');xhr.responseType='arraybuffer';xhr.onload=()=>resolve(xhr.response);xhr.onerror=()=>reject(Error(t('error.parserRead')));xhr.send();});
-  await IOUtils.write(executable,new Uint8Array(buffer));await IOUtils.setPermissions(executable,0o700);
+  // Immutable content-addressed helpers avoid stale macOS code-signature caches.
+  const digest=await Zotero.getMainWindow().crypto.subtle.digest('SHA-256',buffer);
+  const hash=Array.from(new Uint8Array(digest),n=>n.toString(16).padStart(2,'0')).join('');
+  const executable=PathUtils.join(cache,'books-parser-'+hash);
+  if(!await IOUtils.exists(executable)){await IOUtils.write(executable,new Uint8Array(buffer));await IOUtils.setPermissions(executable,0o700);}
   const temp=PathUtils.join(Zotero.getTempDirectory().path,'books-notes-'+Zotero.Utilities.randomString(10));await IOUtils.makeDirectory(temp);
   const output=PathUtils.join(temp,'result.json');
   try {
-    try{await Zotero.Utilities.Internal.exec(executable,[mode,path,output,...(indices?[indices.join(',')]:[])]);}catch(e){if(await IOUtils.exists(output)){const data=JSON.parse(await IOUtils.readUTF8(output));if(data.error)throw Error(data.errorCode?t('parser.'+data.errorCode):data.error);}throw e;}
+    try{await Zotero.Utilities.Internal.exec(executable,[mode,path,output,...(indices?[Array.isArray(indices)?indices.join(','):indices]:[])]);}catch(e){if(await IOUtils.exists(output)){const data=JSON.parse(await IOUtils.readUTF8(output));if(data.error)throw Error(data.errorCode?t('parser.'+data.errorCode):data.error);}throw e;}
     const data=JSON.parse(await IOUtils.readUTF8(output));if(data.error)throw Error(data.errorCode?t('parser.'+data.errorCode):data.error);
     if(data.warnings)data.warnings=data.warnings.map(w=>typeof w==='string'?w:t(w.code,w));return data;
   }finally{await IOUtils.remove(temp,{recursive:true,ignoreAbsent:true});}
 }
-async function pick(win,save=false,json=false) {
+async function pick(win,save=false) {
   const {FilePicker}=ChromeUtils.importESModule('chrome://zotero/content/modules/filePicker.mjs');
   const fp=new FilePicker();fp.init(win,save?t('export'):t('pickSource'),save?fp.modeSave:fp.modeOpen);
-  fp.appendFilter(json?t('bundle'):'PDF',json?'*.json':'*.pdf');
-  if(save){fp.defaultString='apple-books-notes.json';fp.defaultExtension='json';}
+  fp.appendFilter(save?t('bundle'):t('sourceFormats'),save?'*.zip':'*.pdf;*.zip');
+  if(!save){fp.appendFilter('PDF','*.pdf');fp.appendFilter(t('bundle'),'*.zip');}
+  if(save){fp.defaultString='iBooks2Zotero-notes.zip';fp.defaultExtension='zip';}
   if(await fp.show()===fp.returnCancel)return null;return fp.file;
+}
+function bundleError(key='error.bundleInvalid'){const error=new Error(t(key));error.code=key;throw error;}
+function binaryToBytes(text){return Uint8Array.from(text,c=>c.charCodeAt(0));}
+async function readBundle(path,id){
+  const reader=Cc['@mozilla.org/libjar/zip-reader;1'].createInstance(Ci.nsIZipReader);
+  try{
+    reader.open(Zotero.File.pathToFile(path));
+    const entries=new Map();let total=0;
+    const enumeration=reader.findEntries(null);
+    while(enumeration.hasMore()){
+      const name=enumeration.getNext(),entry=reader.getEntry(name);
+      if(!BooksBundle.safePath(entry.isDirectory?name.replace(/\/$/,''):name)||entries.has(name))bundleError();
+      if(!Number.isFinite(entry.realSize)||entry.realSize<0||entry.realSize>BooksBundle.limits.fileBytes)bundleError('error.bundleLarge');
+      total+=entry.realSize;entries.set(name,entry);
+      if(entries.size>BooksBundle.limits.entries||total>BooksBundle.limits.totalBytes)bundleError('error.bundleLarge');
+    }
+    reader.test(null);
+    const manifests=[...entries.keys()].filter(name=>name==='manifest.json'||name.endsWith('/manifest.json'));
+    if(manifests.length!==1)bundleError();
+    const manifestName=manifests[0],prefix=manifestName.slice(0,-'manifest.json'.length);
+    function read(name){
+      if(!BooksBundle.safePath(name)||!entries.has(prefix+name)||entries.get(prefix+name).isDirectory)bundleError();
+      const stream=Cc['@mozilla.org/binaryinputstream;1'].createInstance(Ci.nsIBinaryInputStream);
+      stream.setInputStream(reader.getInputStream(prefix+name));
+      try{return stream.readBytes(entries.get(prefix+name).realSize);}finally{stream.close();}
+    }
+    const host=Zotero.getMainWindow();
+    function readJSON(name){return JSON.parse(new host.TextDecoder('utf-8',{fatal:true}).decode(binaryToBytes(read(name))));}
+    function readBase64(name){return host.btoa(read(name));}
+    const manifest=readJSON('manifest.json');let source;
+    if(Array.isArray(manifest)){
+      const annotations=BooksBundle.legacy(manifest);
+      for(const annotation of annotations)if(annotation.type==='/Square')annotation.archive=readBase64(annotation.archiveFile);
+      const target=Zotero.Items.get(id),pdf=await target?.getFilePathAsync();if(!pdf)bundleError('error.download');
+      const temp=PathUtils.join(Zotero.getTempDirectory().path,'ibooks-legacy-'+Zotero.Utilities.randomString(10));
+      await IOUtils.makeDirectory(temp);
+      try{const input=PathUtils.join(temp,'legacy.json');await IOUtils.writeUTF8(input,JSON.stringify(annotations));source=await helper('legacy',input,pdf);}
+      finally{await IOUtils.remove(temp,{recursive:true,ignoreAbsent:true});}
+      BooksBundle.validate(source);
+    }else source=await BooksBundle.read(manifest,readJSON,readBase64);
+    await validateTarget(id,source);
+    if(!source.legacy){
+      const pdf=await Zotero.Items.get(id).getFilePathAsync(),check=await helper('inspect-preview',pdf,source.pages.map(p=>p.pageIndex));
+      for(const page of source.pages)page.background=check.pages.find(p=>p.pageIndex===page.pageIndex)?.background;
+    }
+    return source;
+  }catch(error){if(typeof error.code==='string'&&error.code.startsWith('error.'))throw error;throw new Error(t('error.bundleRead',{detail:error.message||String(error)}));}
+  finally{try{reader.close();}catch{}}
+}
+async function parseSource(path,id){return /\.zip$/i.test(path)?readBundle(path,id):helper('extract',path);}
+async function exportBundle(win,source){
+  const destination=await pick(win,true);if(!destination)return null;
+  const {files}=BooksBundle.create(source);
+  const temp=PathUtils.join(Zotero.getTempDirectory().path,'ibooks-export-'+Zotero.Utilities.randomString(10));
+  await IOUtils.makeDirectory(temp);const directory=PathUtils.join(temp,'bundle');await IOUtils.makeDirectory(directory);
+  try{
+    for(const file of files){const path=PathUtils.join(directory,file.name);if(file.base64!==undefined)await IOUtils.write(path,binaryToBytes(Zotero.getMainWindow().atob(file.base64)));else await IOUtils.writeUTF8(path,file.text);}
+    await helper('bundle-assets',directory);
+    let size=0;const entries=await IOUtils.getChildren(directory);
+    if(entries.length>BooksBundle.limits.entries)bundleError('error.bundleLarge');
+    for(const entry of entries){const stat=await IOUtils.stat(entry);if(stat.size>BooksBundle.limits.fileBytes)bundleError('error.bundleLarge');size+=stat.size;}
+    if(size>BooksBundle.limits.totalBytes)bundleError('error.bundleLarge');
+    const zip=PathUtils.join(temp,'notes.zip');await Zotero.File.zipDirectory(directory,zip);
+    // Build fully before replacing the chosen output file.
+    await IOUtils.write(destination,await IOUtils.read(zip));return destination;
+  }finally{await IOUtils.remove(temp,{recursive:true,ignoreAbsent:true});}
 }
 function checkedRange(range,total) {
   const start=range?.start??1,end=range?.end??total;
@@ -81,7 +152,7 @@ async function validateTarget(id,source) {
   const path=await target.getFilePathAsync();if(!path)throw Error(t('error.download'));
   const check=await helper('inspect',path,source.pages.map(p=>p.pageIndex));
   if(check.pageCount!==source.pageCount)throw Error(t('error.pageCount',{source:source.pageCount,target:check.pageCount}));
-  for(const page of source.pages){const p=check.pages.find(p=>p.pageIndex===page.pageIndex);if(!p||!p.fingerprint||p.fingerprint!==page.fingerprint||p.rotation!==page.rotation||p.bounds.some((n,i)=>Math.abs(n-page.bounds[i])>0.01))throw Error(t('error.pageMatch',{page:page.pageIndex+1}));}
+  for(const page of source.pages){const p=check.pages.find(p=>p.pageIndex===page.pageIndex);if(!p||!p.fingerprint||(!source.legacy&&p.fingerprint!==page.fingerprint)||p.rotation!==page.rotation||p.bounds.some((n,i)=>Math.abs(n-page.bounds[i])>0.01))throw Error(t('error.pageMatch',{page:page.pageIndex+1}));}
   return target;
 }
 async function syncReader(target) {
@@ -106,7 +177,9 @@ async function importNotes(win,id,source,prepared,replace,range) {
   range=checkedRange(range,source.pageCount);
   const selected={...source,pages:source.pages.filter(p=>inRange(p.pageIndex,range))};
   const target=await validateTarget(id,selected);
-  if(source.warnings.length&&replace&&!Services.prompt.confirm(win,t('confirm.warningTitle'),t('confirm.warning')))return null;
+  if(source.legacy&&!Services.prompt.confirm(win,t('confirm.legacyTitle'),t('confirm.legacy')))return null;
+  const incomplete=source.warnings.filter(w=>w!==BooksI18n.catalogs.en['warning.legacy']&&w!==BooksI18n.catalogs.zh['warning.legacy']);
+  if(incomplete.length&&replace&&!Services.prompt.confirm(win,t('confirm.warningTitle'),t('confirm.warning')))return null;
   const old=rangeAnnotations(target,range);
   if(replace&&old.length&&!Services.prompt.confirm(win,t('replace'),t('confirm.replace',{...range,count:old.length})))return null;
   const ready=[];
@@ -136,8 +209,8 @@ async function openNotes(win) {
   const args={locale:language().locale,targets:targets.map(a=>({id:a.id,title:(a.parentID?Zotero.Items.get(a.parentID).getField('title')+' — ':'')+a.getField('title')})),
     getPref:(key,fallback)=>Zotero.Prefs.get(PREFIX+key,true)??fallback,setPref:(key,value)=>Zotero.Prefs.set(PREFIX+key,value,true),
     range:checkedRange,pageCount:targetPageCount,
-    pick:(w)=>pick(w),parse:path=>helper('extract',path),validate:validateTarget,import:importNotes,clear:clearNotes,
-    export:async(w,data)=>{const path=await pick(w,true,true);if(path){const standalone={...data,pages:data.pages.map(({background,...page})=>page)};await IOUtils.writeUTF8(path,JSON.stringify(standalone));}return path;},
+    pick:(w)=>pick(w),parse:(path,id)=>parseSource(path,id),validate:validateTarget,import:importNotes,clear:clearNotes,
+    export:exportBundle,
     count:(id,range)=>range?rangeAnnotations(Zotero.Items.get(id),range).length:Zotero.Items.get(id).getAnnotations().length,
     show:async(id,page)=>{const reader=await Zotero.Reader.open(id);reader.navigate({pageIndex:page});}
   };

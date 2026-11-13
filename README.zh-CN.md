@@ -10,17 +10,17 @@
 
 ## 项目特点
 
-- 导入 PencilKit 手写轨迹、标准 PDF 高亮和文字便笺。
+- 支持从带笔记的 PDF 或指定格式的笔记 ZIP 导入 PencilKit 手写、高亮和文字便笺。
 - 保留笔迹位置、颜色，并把手写拆分为独立批注。
 - 实时预览分组，可调整纵向/横向间距与拆分顺序。
 - 按 PDF 页码范围追加导入、替换或清空批注。
 - 导入前核对源/目标页数、正文指纹、页面尺寸和旋转。
 - 自动跟随 Zotero 界面语言，读取不到时回退系统语言；中文使用简体中文，其他语言使用英文。
-- 全程本地处理，可导出独立 JSON 笔记包，无需账号或 API 密钥。
+- 全程本地处理，可导出体积较小、能重新导入的笔记 ZIP，无需账号或 API 密钥。
 
 ## 安装
 
-1. 从 [Releases](https://github.com/jmm1960/iBooks2Zotero/releases) 下载 `iBooks2Zotero-0.4.0.xpi`。
+1. 从 [Releases](https://github.com/jmm1960/iBooks2Zotero/releases) 下载 `iBooks2Zotero-0.5.0.xpi`。
 2. 在 Zotero **工具 → 插件**中，通过齿轮菜单选择**从文件安装插件**，打开 XPI。
 3. 打开目标 PDF，或选中文献条目/PDF 附件，点击**工具 → iBooks2Zotero…**。条目右键菜单也有入口。
 
@@ -31,17 +31,25 @@
 1. **导出 PDF。** 在 iPhone/iPad 的 **图书 → 书库**中，点击 PDF 下方的**更多（…）→ 共享**，通过 AirDrop 发送到 Mac，或从共享菜单保存副本。旧版本可能在打开 PDF 后显示共享按钮。参见 [Apple 的 iPad PDF 使用指南](https://support.apple.com/en-qa/guide/ipad/ipadca8ec5ef/ipados)。
 2. **检查导出结果。** 确认手写和高亮仍可见。共享 PDF 文件本身，避免打印、压平或导出截图，以免丢失可提取的笔画数据。
 3. **准备目标 PDF。** 将同一版本、不带批注的 PDF 导入 Zotero，选中或打开该附件。
-4. **选择来源。** 打开 **iBooks2Zotero… → 选择来源 PDF**，选择带笔记的导出文件，插件会自动解析。
+4. **选择来源。** 打开 **iBooks2Zotero… → 选择来源**，选择带笔记的 PDF 或笔记 ZIP，插件会自动解析。
 5. **检查分组。** 设置页码范围并预览。默认先纵向、后横向，纵距 **3.7 pt**、横距 **8 pt**；间距越大，合并越多。
 6. **导入。** 选择**追加导入**保留已有批注，或选择**替换所选页批注**，先清空该范围再导入。之后可在 Zotero 阅读器里编辑。
 
 **清空和替换会删除所选页内的全部 Zotero 原生批注，包括后来手动创建的批注。** 两者均有确认提示。范围外批注、图书独立笔记和 PDF 内嵌批注保留。没有重复检测或长期导入历史；反复追加会产生重复批注。
 
-页码按 PDF 实际页序计算，包含起止页，不一定等于书页上印刷的页码。导出独立笔记包会包含完整来源，不受导入范围影响；暂不支持重新导入 JSON 包。
+页码按 PDF 实际页序计算，包含起止页，不一定等于书页上印刷的页码。**导出笔记 ZIP** 会保存完整来源中成功解析的笔记，不受当前页码范围影响。之后可以再次选择该 ZIP 作为来源；Zotero 中仍需有对应的目标 PDF。
+
+## ZIP 笔记包
+
+- ZIP 内含清单、PDF 页码和位置、逐页笔画/批注 JSON、原始 `.apple.plist` 归档、`.drawing` 绘图文件和透明 PNG 预览，不含原书书页。JSON 保留为 ZIP 内部的数据文件。
+- 在“选择来源”中选择 ZIP，即可按当前间距重新分组；不再需要原始的带笔记 PDF，但仍需要 Zotero 中的目标 PDF。
+- 新版 ZIP 保留正文指纹，支持自动匹配；也兼容此前提取包的布局，包括外层套一个文件夹的 ZIP。
+- 旧提取包缺少正文指纹和完整来源页数，导入前必须人工确认同一 PDF 版本；高亮矩形和颜色可能近似。旧包重新导出后仍保留未验证标记。
+- PNG 是笔迹的近似预览，原始绘图归档完整保留。任意 PDF/图片压成的 ZIP 不属于支持的笔记包。参见 [格式说明](docs/BUNDLE-FORMAT.md)。
 
 ## 演示与截图
 
-将 [demo/clean.pdf](demo/clean.pdf) 导入 Zotero 作为目标，选择 [demo/annotated.pdf](demo/annotated.pdf) 作为来源。原创三页示例包含 13 条笔画、2 个高亮和 1 个便笺，默认分组后得到 **11 条原生批注**。第三页特意不含批注，可用于检查范围。
+将 [demo/clean.pdf](demo/clean.pdf) 导入 Zotero 作为目标，选择 [demo/annotated.pdf](demo/annotated.pdf) 或 [demo/annotations.zip](demo/annotations.zip) 作为来源。原创三页示例包含 13 条笔画、2 个高亮和 1 个便笺，默认分组后得到 **11 条原生批注**。第三页特意不含批注，可用于检查范围。
 
 演示的 PencilKit 数据为**合成数据**，使用解析器支持的归档结构，**并非 Apple Books 的真实导出样本**。原创 PDF 正文及批注采用 **CC0 1.0**，可随项目分发。参见 [演示说明与许可](demo/README.md)。
 
@@ -56,7 +64,7 @@ npm test
 npm run build
 ```
 
-输出为 `dist/iBooks2Zotero-0.4.0.xpi`。原生解析器采用 ad-hoc 签名，未经过 Apple 公证。安装[演示依赖](scripts/demo-requirements.txt)后，可通过 `PYTHON=path/to/python npm run demo` 重新生成示例。
+输出为 `dist/iBooks2Zotero-0.5.0.xpi`。原生解析器采用 ad-hoc 签名，未经过 Apple 公证。安装[演示依赖](scripts/demo-requirements.txt)后，可通过 `PYTHON=path/to/python npm run demo` 重新生成示例。
 
 - `src/`：插件、紧凑界面、翻译字典和几何分组核心。
 - `src/native/`：Swift PDFKit/PencilKit 解析器。
