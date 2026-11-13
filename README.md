@@ -20,7 +20,7 @@ Bring handwritten notes, highlights, and comments from an Apple Books PDF into Z
 
 ## Install
 
-1. Download `iBooks2Zotero-0.5.0.xpi` from [Releases](https://github.com/jmm1960/iBooks2Zotero/releases).
+1. Download `iBooks2Zotero-0.6.0.xpi` from [Releases](https://github.com/jmm1960/iBooks2Zotero/releases).
 2. In Zotero, open **Tools → Plugins**, then use the gear menu → **Install Plugin From File** and select the XPI.
 3. Open a target PDF, or select its item/attachment, then choose **Tools → iBooks2Zotero…**. The item context menu also has this command.
 
@@ -37,15 +37,16 @@ Tested with Zotero **10.0.9** on macOS. The parser includes Apple Silicon and In
 
 **Clear/Replace deletes all native Zotero annotations in the selected pages, including ones you created in Zotero.** Both ask for confirmation. Other pages, standalone library notes, and annotations embedded in the PDF are preserved. There is no duplicate detection or plugin import history; repeated appends create duplicates.
 
-Page numbers follow physical PDF order, include both endpoints, and may differ from printed page labels. **Export annotation ZIP** saves all successfully parsed source annotations, regardless of the import range. The ZIP can be selected as a source later; the matching target PDF is still required.
+Page numbers follow physical PDF order, include both endpoints, and may differ from printed page labels. **Export annotation ZIP** preserves original source annotation objects and their dependencies, regardless of the import range. The ZIP can be selected as a source later; the matching target PDF is still required.
 
-## Annotation ZIPs
+## Raw annotation ZIPs
 
-- Exported ZIPs contain a manifest, physical page numbers and positions, stroke/annotation JSON files, original `.apple.plist` archives, `.drawing` files, and transparent PNG previews. No book pages are included; JSON remains an internal part of the ZIP.
-- Re-import a ZIP with **Choose source** and regroup its strokes using the current gap settings. The original source PDF is no longer needed, but the target PDF in Zotero is.
-- New bundles retain page fingerprints for automatic matching. The earlier extraction ZIP layout is also supported, including a manifest inside one enclosing directory.
-- Old extraction ZIPs lack source page fingerprints and the complete source page count. They require manual edition confirmation before any import; highlight rectangles/colors may be approximate. Re-exporting an old ZIP keeps this unverified status.
-- PNG previews are approximate renderings of pen strokes; raw drawing archives remain intact. A plain ZIP of arbitrary PDFs/images is not an annotation bundle. See [the format](docs/BUNDLE-FORMAT.md).
+- Export preserves original PDF annotation dictionaries, opaque Apple drawing archives, unknown/private fields, and referenced appearance/resource streams. It does not decode, sample, split, or redraw handwriting.
+- ZIPs contain `manifest.json`, `annotations.pdf` (annotation objects on blank pages), and `README.txt`. Original page order, geometry, and matching fingerprints are recorded. Book page content is excluded.
+- Select the ZIP as a source alongside the matching target PDF in Zotero. Parsing and grouping happen then, using the current algorithm. Unsupported annotation data remains in the ZIP even if the current converter cannot import it.
+- Export is available after the source archive is prepared, including when conversion or target matching fails. Exporting an imported ZIP preserves its payload unchanged, regardless of range/group settings.
+- Previous experimental ZIP formats are intentionally unsupported. Re-export from the annotated source PDF.
+- Annotation graphs and compressed stream bytes are verified before export. PDF object numbers/container serialization change; this is not a byte-identical backup of the original PDF and does not preserve its valid digital signatures. See [the format](docs/BUNDLE-FORMAT.md).
 
 ## Demo & screenshots
 
@@ -57,14 +58,15 @@ The PencilKit data is **synthetic**, wrapped in the archive structure consumed b
 
 ## Build & test
 
-Requires macOS, Xcode Command Line Tools, Node.js, and system `zip`, `lipo`, and `codesign`. No npm dependencies.
+Requires macOS, Xcode Command Line Tools, Node.js, and system `zip`, `lipo`, and `codesign`. No npm install is required; MIT-licensed pdf-lib is vendored (see [third-party notices](THIRD_PARTY.md)).
 
 ```sh
 npm test
 npm run build
+node scripts/check-raw-roundtrip.cjs
 ```
 
-Output: `dist/iBooks2Zotero-0.5.0.xpi`. The native helper uses an ad-hoc signature; it is not Apple-notarized. Rebuild the original demo with `PYTHON=path/to/python npm run demo` after installing [the demo dependencies](scripts/demo-requirements.txt).
+Output: `dist/iBooks2Zotero-0.6.0.xpi`. The native helper uses an ad-hoc signature; it is not Apple-notarized. Rebuild the original demo with `PYTHON=path/to/python npm run demo` after installing [the demo dependencies](scripts/demo-requirements.txt).
 
 - `src/`: plugin, compact UI, localization catalog, and geometry core.
 - `src/native/`: Swift PDFKit/PencilKit parser.

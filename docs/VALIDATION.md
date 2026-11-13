@@ -25,13 +25,13 @@ The fixture exercises the specific archive structure supported by the parser. It
 - Chinese UI and clear confirmation were checked with an isolated copy of the same bootstrap code using a Chinese locale resolver; the actual installed dialog resources were used. This did not modify Zotero's language setting.
 - New English/Chinese import screenshots are `import-preview-en.jpg` and `import-preview-zh.jpg`. They show the original fixture in real Zotero windows.
 
-## 0.5.0 annotation ZIPs
+## 0.6.0 raw annotation archives
 
-- Thirteen Node regression tests pass, including full bundle data round trips, regrouping, legacy provenance retention, invalid metadata, path/reference checks, and localization.
-- Real Zotero ZIP APIs exported the original demo from parsed PDF data and read the resulting ZIP back. Strokes, notes/comments, page fingerprints, and raw Apple archives matched exactly. The ZIP had 14 files, including two transparent previews, and was about 34 KiB.
-- Imported the restored data into a new, dedicated demo PDF attachment: 11 native annotations were saved.
-- Read the earlier private extraction ZIP with its enclosing directory through the actual ZIP reader and native legacy adapter: 2550 strokes and 74 groups. A local coordinate comparison against the original PDF extraction found a maximum floating-point difference below 1e-9 PDF points. Private input files are not included in the repository.
-- Two malformed/unsupported ZIPs and a mismatched target PDF were rejected. Cancelling legacy edition confirmation preserved all target annotation IDs.
-- Export PNGs are approximate stroke previews, not original PDF appearance images. Original archives/drawing data remain intact; no book page backgrounds are included in the ZIP.
-- The native helper cache now uses immutable content hashes to avoid repeatedly overwriting an executable cached by macOS code-signature validation.
-- The 0.5.0 add-on installed successfully. The final file-picker/button visual pass could not be completed because desktop window control became unavailable; the actual ZIP read/write and import APIs were exercised successfully in Zotero before that interruption.
+- Ten Node tests pass, including unknown annotation types, opaque undecodable drawing data, nested private fields/binary strings, cyclic/shared references, original compressed appearance/image/mask streams, page geometry, document metadata, tampered hashes, rejected earlier formats, and localization.
+- Raw export compares original/reloaded annotation object graphs and stream hashes before accepting the payload. The public fixture retains all 5 embedded PDF annotations; current conversion yields 13 strokes and 11 native annotations.
+- `node scripts/check-raw-roundtrip.cjs` confirms that native decoding from the raw annotation-only payload exactly matches decoding the original demo PDF, including highlights/comments and coordinates.
+- A private 369-page source retained all 20 original PDF annotations in an 8,565,901-byte payload. Native decoding of its raw payload matched the original source exactly: 2550 strokes. Private PDFs and extracted data are excluded from the repository.
+- Actual Zotero 10.0.9 ZIP writer/reader: raw export, CRC-read, hash verification, reparse and mismatch rejection succeeded. Re-export retained the identical payload SHA-256. The demo ZIP was about 14 KiB.
+- Imported the raw ZIP data into a new dedicated demo attachment: 11 native annotations saved and displayed in Zotero's reader. User book attachments were not modified.
+- Installed 0.6.0 and selected `demo/annotations.zip` using the actual file picker. The dialog showed 13 strokes, 11 groups, matching pages, preview and enabled export/import controls.
+- No compatibility path for earlier processed-data ZIPs remains. Existing screenshots illustrate the same interface; they were captured in earlier versions, not generated as evidence for this format change.

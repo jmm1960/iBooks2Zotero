@@ -1,33 +1,21 @@
-# Annotation ZIP format (v1)
+# Raw annotation archive (version 1)
 
-A source bundle can replace the annotated source PDF, not the target PDF in Zotero. It contains all successfully parsed source annotations, independent of the current import range. Grouping settings/results are intentionally not stored; strokes can be regrouped on import.
+Only this format is supported. Earlier experimental converted-data ZIPs are not accepted.
 
-```text
+```
 manifest.json
+annotations.pdf
 README.txt
-page-0001.strokes.json
-page-0001.notes.json
-page-0001-annotation-01.apple.plist
-page-0001-annotation-01.drawing
-page-0001-annotation-01.png
-page-0001-annotation-01.preview.json
-...
 ```
 
-`manifest.json` has `format: "ibooks2zotero-bundle"`, `version: 1`, `pageCount`, `legacy`, `warnings`, `sourceName`, and `pages`. Each page records a zero-based `pageIndex`, `pageLabel`, `[width,height]` PDF bounds, rotation, a SHA-256 page-content fingerprint, and relative filenames for strokes, notes, and Apple archives. Filenames use one-based physical PDF pages. A single enclosing folder is accepted when importing.
+The manifest has `format: "ibooks2zotero-raw-annotations"`, `version: 1`, `payload: "annotations.pdf"`, SHA-256 hashes `payloadSHA256` and `sourceSHA256`, `sourceName`, `pageCount`, `annotationCount`, and `pages`. Each zero-based page record has `pageIndex`, `annotationCount`, `[width,height]` bounds, rotation, and an original book-content fingerprint when it has annotations. Fingerprints are computed before removing page content, never from the blank payload.
 
-- Stroke JSON: an array of `{color, points}`, with points `[x,y,width]` in PDF coordinates (origin at bottom left). It is sampled data used for conversion, not a lossless replacement for the original archive.
-- Notes JSON: highlight/text-note type, rectangle(s), color, text, and comment.
-- Apple archive: the original binary keyed archive, kept intact.
-- Drawing: decoded PencilKit drawing data, including properties not represented by the simplified stroke JSON.
-- PNG/preview JSON: approximate transparent stroke rendering, with drawing-space bounds and drawing size. These previews are for browsing and are not needed for import. Empty drawings have no PNG. They do not claim to reproduce pressure, pen texture, or erasing exactly.
+`annotations.pdf` has the original physical page order and geometry. Annotation dictionaries are copied recursively, preserving unknown fields, opaque strings, original compressed stream bytes, appearances, image masks, resources, popup/reply relationships and shared/cyclic references. References to original pages/page trees/catalog are remapped to the new blank document. Page labels, document Info, Metadata, AcroForm, optional-content properties and destination data are copied. Page body content and ordinary page resources are excluded, unless explicitly reachable through annotation dependencies.
 
-No source PDF, book-page background images, Zotero IDs, import history, or current grouping configuration is included. Warnings and unsupported original annotation metadata cannot be recovered from parsed data alone.
+Export does not instantiate PencilKit drawings, resample paths, group strokes, reconstruct appearances, or flatten annotations. Before accepting the payload, export reloads it and compares canonical annotation graphs, page geometry, selected document dependencies, binary-string hashes and raw-stream hashes. Unresolved references in the original remain unresolved. If this verification fails, export fails rather than silently omitting data.
 
-## Legacy extraction ZIPs
+The payload is an annotation-data archive, not a complete original-PDF backup. Object numbering, cross-reference tables, container serialization and indirect stream lengths can change; signatures on the source file are not retained as valid signatures. Unrelated document structures are outside its scope. Keep the original PDF when whole-file preservation is required. Referenced annotation resources may include images/text; this is not a privacy sanitization format.
 
-The earlier extraction format uses an array in `manifest.json` with one-based `pdf_page`, `annotation`, `type`, and `rectangle`, and files such as `page-174-annotation-01.apple.plist`. Handwriting is decoded from the original archive, using its drawing dimensions to map points onto the selected target PDF. Legacy `.strokes.json` uses a different, drawing-space schema and is not mistaken for normalized PDF coordinates.
+On selection, validate manifest/hash/page inventory, then match original fingerprints against the target PDF. Only then decode supported annotations from the payload, extract highlight text/backgrounds from the target, and apply current grouping settings. Unknown annotations remain in the stored payload even if the converter reports warnings or no supported annotations. Re-exporting a ZIP writes the same payload bytes and manifest, without reprocessing or regrouping them.
 
-These archives do not contain page fingerprints or the complete original page count. The selected PDF supplies page backgrounds and total page count. The importer checks referenced page indices and drawing aspect ratios but cannot establish document identity. It requires explicit edition confirmation before importing. Legacy highlights use stored rectangles with a default yellow color; original quadrilaterals/colors may be unavailable. Re-export retains `legacy: true` and empty fingerprints, preventing a legacy bundle from being relabeled as a verified source.
-
-Other ZIPs, unsupported manifest versions, missing data files, unsafe/duplicate paths and references, and invalid coordinates are rejected. Limits: 10,000 entries, 64 MiB per entry, 256 MiB total uncompressed data, and 2 million stroke sample points. Archive entries are read directly as streams, not extracted to arbitrary filesystem paths. Export builds a temporary bundle before writing the chosen destination.
+ZIP entries are CRC-tested and read as streams, never extracted to arbitrary paths. Unsafe/duplicate paths, unsupported manifests, missing payloads and modified payload hashes are rejected. Limits: 10,000 entries, 128 MiB per entry, 256 MiB total uncompressed data, graph depth 200 and 100,000 copied/traversed objects. Source SHA-256 records provenance; it is not an authenticity signature.

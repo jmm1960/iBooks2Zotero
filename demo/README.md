@@ -2,7 +2,7 @@
 
 - `clean.pdf`: the PDF to add to Zotero as the target attachment.
 - `annotated.pdf`: the PDF source to select in the importer. Three pages: two annotated, one intentionally empty.
-- `annotations.zip`: a smaller source bundle with the same annotations and page fingerprints, raw drawing archives, and approximate transparent previews. No book page images are included.
+- `annotations.zip`: a raw annotation archive with original annotation objects, appearance streams, page geometry, and source fingerprints. No book page images are included.
 - Both have the same original page content. There is no third-party book content and no personal data.
 
 The pen strokes are synthetic `PKDrawing` data, wrapped in a minimal archive with the keys consumed by this parser. Standard PDF ink appearances make the source viewable in other readers. This fixture tests our parser's expected representation; **it is not an Apple Books export and does not prove compatibility with every Apple Books version**. No Apple private framework is used to generate it.

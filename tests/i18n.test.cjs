@@ -21,7 +21,7 @@ test('both catalogs have identical keys and interpolation parameters',()=>{
  assert.equal(english.error({code:'error.rotation',params:{page:2}}),'Page 2 is rotated and cannot be imported yet.');
 });
 test('all referenced translation keys exist, including markup and native warnings',()=>{
- for(const name of ['bootstrap.js','dialog.js','dialog.xhtml','select-control.js','bundle.js','native/BooksParser.swift']){
+ for(const name of ['bootstrap.js','dialog.js','dialog.xhtml','select-control.js','archive.js','native/BooksParser.swift']){
   const source=fs.readFileSync(path.join(root,'src',name),'utf8');
   const matches=[...source.matchAll(/\bt\('([^']+)'/g),...source.matchAll(/data-i18n(?:-title|-aria-label)?="([^"]+)"/g),...source.matchAll(/"code":"([^"]+)"/g)];
   for(const match of matches.filter(m=>!m[1].endsWith('.')))assert.ok(i18n.catalogs.en[match[1]],name+': '+match[1]);

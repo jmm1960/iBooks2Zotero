@@ -20,7 +20,7 @@
 
 ## 安装
 
-1. 从 [Releases](https://github.com/jmm1960/iBooks2Zotero/releases) 下载 `iBooks2Zotero-0.5.0.xpi`。
+1. 从 [Releases](https://github.com/jmm1960/iBooks2Zotero/releases) 下载 `iBooks2Zotero-0.6.0.xpi`。
 2. 在 Zotero **工具 → 插件**中，通过齿轮菜单选择**从文件安装插件**，打开 XPI。
 3. 打开目标 PDF，或选中文献条目/PDF 附件，点击**工具 → iBooks2Zotero…**。条目右键菜单也有入口。
 
@@ -37,15 +37,16 @@
 
 **清空和替换会删除所选页内的全部 Zotero 原生批注，包括后来手动创建的批注。** 两者均有确认提示。范围外批注、图书独立笔记和 PDF 内嵌批注保留。没有重复检测或长期导入历史；反复追加会产生重复批注。
 
-页码按 PDF 实际页序计算，包含起止页，不一定等于书页上印刷的页码。**导出笔记 ZIP** 会保存完整来源中成功解析的笔记，不受当前页码范围影响。之后可以再次选择该 ZIP 作为来源；Zotero 中仍需有对应的目标 PDF。
+页码按 PDF 实际页序计算，包含起止页，不一定等于书页上印刷的页码。**导出笔记 ZIP** 会保存完整来源的原始批注对象和依赖数据，不受当前页码范围影响。之后可以再次选择该 ZIP 作为来源；Zotero 中仍需有对应的目标 PDF。
 
-## ZIP 笔记包
+## 原始批注 ZIP
 
-- ZIP 内含清单、PDF 页码和位置、逐页笔画/批注 JSON、原始 `.apple.plist` 归档、`.drawing` 绘图文件和透明 PNG 预览，不含原书书页。JSON 保留为 ZIP 内部的数据文件。
-- 在“选择来源”中选择 ZIP，即可按当前间距重新分组；不再需要原始的带笔记 PDF，但仍需要 Zotero 中的目标 PDF。
-- 新版 ZIP 保留正文指纹，支持自动匹配；也兼容此前提取包的布局，包括外层套一个文件夹的 ZIP。
-- 旧提取包缺少正文指纹和完整来源页数，导入前必须人工确认同一 PDF 版本；高亮矩形和颜色可能近似。旧包重新导出后仍保留未验证标记。
-- PNG 是笔迹的近似预览，原始绘图归档完整保留。任意 PDF/图片压成的 ZIP 不属于支持的笔记包。参见 [格式说明](docs/BUNDLE-FORMAT.md)。
+- 导出保留 PDF 原始批注字典、Apple 绘图归档、未知或私有字段，以及引用的外观和资源数据流，不提前解码、重采样、拆分或重绘笔迹。
+- ZIP 包含 `manifest.json`、`annotations.pdf`（空白页面上的原始批注对象）和 `README.txt`，保存原始页序、页面尺寸和匹配指纹，不包含书页正文。
+- 选择 ZIP 作为来源，搭配 Zotero 中匹配的目标 PDF，才使用当前算法解析和分组。即使当前转换器无法识别某种批注，原始数据仍保留在 ZIP 中。
+- 原始存档准备完成后，即使转换或目标匹配失败，仍可导出。ZIP 再导出保留同一份批注载荷，不受范围和分组参数影响。
+- 不兼容此前实验版本的 ZIP，请从带批注的来源 PDF 重新导出。
+- 导出前核对批注对象图和压缩数据流。PDF 对象编号和容器结构会重写，因此不是原 PDF 的逐字节备份，也不保留原文件数字签名的有效性。参见[格式说明](docs/BUNDLE-FORMAT.md)。
 
 ## 演示与截图
 
@@ -57,14 +58,15 @@
 
 ## 构建与测试
 
-需要 macOS、Xcode Command Line Tools、Node.js，以及系统的 `zip`、`lipo`、`codesign`。无 npm 依赖。
+需要 macOS、Xcode Command Line Tools、Node.js，以及系统的 `zip`、`lipo`、`codesign`。无需 npm install；内置 MIT 许可的 pdf-lib，参见[第三方声明](THIRD_PARTY.md)。
 
 ```sh
 npm test
 npm run build
+node scripts/check-raw-roundtrip.cjs
 ```
 
-输出为 `dist/iBooks2Zotero-0.5.0.xpi`。原生解析器采用 ad-hoc 签名，未经过 Apple 公证。安装[演示依赖](scripts/demo-requirements.txt)后，可通过 `PYTHON=path/to/python npm run demo` 重新生成示例。
+输出为 `dist/iBooks2Zotero-0.6.0.xpi`。原生解析器采用 ad-hoc 签名，未经过 Apple 公证。安装[演示依赖](scripts/demo-requirements.txt)后，可通过 `PYTHON=path/to/python npm run demo` 重新生成示例。
 
 - `src/`：插件、紧凑界面、翻译字典和几何分组核心。
 - `src/native/`：Swift PDFKit/PencilKit 解析器。

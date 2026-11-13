@@ -57,51 +57,10 @@ func write(_ value:Any,_ path:String)throws {
     let data=try JSONSerialization.data(withJSONObject:value,options:[.sortedKeys])
     try data.write(to:URL(fileURLWithPath:path),options:.atomic)
 }
-func drawingPreview(_ drawing:PKDrawing)->Data? {
-    let box=drawing.bounds
-    guard !box.isEmpty,!box.isNull,box.width.isFinite,box.height.isFinite else {return nil}
-    let scale=min(1,2000/max(box.width,box.height)),w=max(1,Int(ceil(box.width*scale))),h=max(1,Int(ceil(box.height*scale)))
-    guard let ctx=CGContext(data:nil,width:w,height:h,bitsPerComponent:8,bytesPerRow:w*4,space:CGColorSpaceCreateDeviceRGB(),bitmapInfo:CGImageAlphaInfo.premultipliedLast.rawValue) else {return nil}
-    ctx.setLineCap(.round);ctx.setLineJoin(.round)
-    for stroke in drawing.strokes {
-        let points=Array(stroke.path.interpolatedPoints(by:.distance(0.7)))
-        guard let first=points.first else {continue}
-        let color=stroke.ink.color.usingColorSpace(.deviceRGB) ?? .blue
-        ctx.setStrokeColor(color.cgColor);ctx.setFillColor(color.cgColor);ctx.setLineWidth(max(0.2,first.size.width*0.6*scale))
-        func position(_ point:PKStrokePoint)->CGPoint {let q=point.location.applying(stroke.transform);return CGPoint(x:(q.x-box.minX)*scale,y:(box.maxY-q.y)*scale)}
-        if points.count==1 {let q=position(first);ctx.fillEllipse(in:CGRect(x:q.x-1,y:q.y-1,width:2,height:2));continue}
-        ctx.beginPath();ctx.move(to:position(first));for point in points.dropFirst(){ctx.addLine(to:position(point))};ctx.strokePath()
-    }
-    guard let image=ctx.makeImage() else {return nil}
-    return NSBitmapImageRep(cgImage:image).representation(using:.png,properties:[:])
-}
 func main()throws {
     let args=CommandLine.arguments
     guard args.count>=4 else {throw NSError(domain:"BooksParser",code:1)}
-    if args[1]=="bundle-assets" {
-        let directory=URL(fileURLWithPath:args[2],isDirectory:true)
-        let urls=try FileManager.default.contentsOfDirectory(at:directory,includingPropertiesForKeys:nil)
-        let maximum=256*1024*1024
-        var bytes=try urls.reduce(0){sum,url in sum+((try FileManager.default.attributesOfItem(atPath:url.path)[.size] as? NSNumber)?.intValue ?? 0)}
-        if bytes>maximum {throw NSError(domain:"BooksParser",code:6)}
-        for url in urls where url.lastPathComponent.hasSuffix(".apple.plist") {
-            let (drawing,size)=try decode(Data(contentsOf:url))
-            let stem=String(url.lastPathComponent.dropLast(".apple.plist".count))
-            let raw=drawing.dataRepresentation();bytes+=raw.count
-            if bytes>maximum {throw NSError(domain:"BooksParser",code:6)}
-            try raw.write(to:directory.appendingPathComponent(stem+".drawing"))
-            let box=drawing.bounds
-            if let png=drawingPreview(drawing) {
-                bytes+=png.count
-                if bytes>maximum {throw NSError(domain:"BooksParser",code:6)}
-                try png.write(to:directory.appendingPathComponent(stem+".png"))
-                try write(["coordinateSpace":"drawing-top-left","rendering":"approximate-stroke-preview","bounds":[box.minX,box.minY,box.width,box.height],"drawingSize":[size.width,size.height]],directory.appendingPathComponent(stem+".preview.json").path)
-            }
-        }
-        try write(["ok":true],args[3]);return
-    }
-    let legacy=args[1]=="legacy"
-    let documentPath=legacy && args.count>4 ? args[4] : args[2]
+    let documentPath=args[2]
     guard let document=PDFDocument(url:URL(fileURLWithPath:documentPath)) else {throw NSError(domain:"BooksParser",code:1,userInfo:[NSLocalizedDescriptionKey:"Cannot open the PDF file."])}
     if document.isLocked {throw NSError(domain:"BooksParser",code:4,userInfo:[NSLocalizedDescriptionKey:"The PDF is encrypted. Unlock it first."])}
     if args[1]=="inspect" || args[1]=="inspect-preview" {
@@ -115,36 +74,19 @@ func main()throws {
         }
         try write(["pageCount":document.pageCount,"pages":pages],args[3]);return
     }
-    if legacy {
-        let descriptor=try JSONSerialization.jsonObject(with:Data(contentsOf:URL(fileURLWithPath:args[2]))) as! [[String:Any]]
-        for i in 0..<document.pageCount {if let page=document.page(at:i){for annotation in page.annotations{page.removeAnnotation(annotation)}}}
-        for entry in descriptor {
-            guard let number=entry["pdf_page"] as? Int,let page=document.page(at:number-1),
-                  let rect=entry["rectangle"] as? [Double],rect.count==4 else {throw NSError(domain:"BooksParser",code:5)}
-            let type=entry["type"] as? String ?? ""
-            let bounds=CGRect(x:rect[0],y:rect[1],width:rect[2]-rect[0],height:rect[3]-rect[1])
-            let annotation=PDFAnnotation(bounds:bounds,forType:type=="/Square" ? .square : type=="/Highlight" ? .highlight : .text,withProperties:nil)
-            annotation.color = .yellow;annotation.contents=entry["text"] as? String ?? ""
-            if type=="/Square" {
-                guard let encoded=entry["archive"] as? String,let data=Data(base64Encoded:encoded) else {throw NSError(domain:"BooksParser",code:5)}
-                let (_,size)=try decode(data),box=page.bounds(for:.mediaBox)
-                guard abs((size.width/size.height)/(box.width/box.height)-1)<0.01 else {throw NSError(domain:"BooksParser",code:5)}
-                annotation.setValue(["AKAnnotationV2":encoded],forAnnotationKey:PDFAnnotationKey(rawValue:"AAPL:" + "AK" + "Extras"))
-            }
-            page.addAnnotation(annotation)
-        }
-    }
+    let target=args[1]=="extract-raw" && args.count>4 ? PDFDocument(url:URL(fileURLWithPath:args[4])) : nil
+    if args[1]=="extract-raw" && (target == nil || target!.pageCount != document.pageCount) {throw NSError(domain:"BooksParser",code:5)}
     var pages:[[String:Any]]=[],warnings:[[String:Any]]=[]
     for i in 0..<document.pageCount {
         guard let page=document.page(at:i) else {continue}
-        var strokes:[[String:Any]]=[];var native:[String]=[];var notes:[[String:Any]]=[]
+        var strokes:[[String:Any]]=[];var notes:[[String:Any]]=[]
+        let contentPage=target?.page(at:i) ?? page
         let bounds=page.bounds(for:.mediaBox)
         for annotation in page.annotations {
             if let data=archive(annotation) {
                 do {
                     let (drawing,size)=try decode(data)
                     let sx=bounds.width/size.width,sy=bounds.height/size.height
-                    native.append(data.base64EncodedString())
                     for s in drawing.strokes {
                         if s.renderBounds.isNull || s.ink.color.alphaComponent < 0.01 { continue }
                         if s.mask != nil {warnings.append(["code":"warning.mask","page":i+1])}
@@ -168,22 +110,21 @@ func main()throws {
                 } else {rects=[[b.minX,b.minY,b.maxX,b.maxY].map{Double($0)}]}
                 let c=annotation.color.usingColorSpace(.deviceRGB) ?? .yellow
                 let color=String(format:"#%02x%02x%02x",Int((c.redComponent*255).rounded()),Int((c.greenComponent*255).rounded()),Int((c.blueComponent*255).rounded()))
-                notes.append(["type":"highlight","rects":rects,"color":color,"comment":annotation.contents ?? "","text":page.selection(for:b)?.string ?? ""])
+                notes.append(["type":"highlight","rects":rects,"color":color,"comment":annotation.contents ?? "","text":contentPage.selection(for:b)?.string ?? ""])
             } else if annotation.type == "Text",let text=annotation.contents,!text.isEmpty {
                 let b=annotation.bounds
                 notes.append(["type":"note","rects":[[Double(b.minX),Double(b.minY),Double(b.maxX),Double(b.maxY)]],"color":"#ffd400","comment":text])
             } else if annotation.type != "Link" {warnings.append(["code":"warning.type","page":i+1,"type":annotation.type ?? "Unknown"])}
         }
         if !strokes.isEmpty || !notes.isEmpty {
-            pages.append(["pageIndex":i,"pageLabel":page.label ?? String(i+1),"bounds":[Double(bounds.width),Double(bounds.height)],"rotation":page.rotation,"fingerprint":legacy ? "" : signature(page),"background":preview(page),"strokes":strokes,"notes":notes,"appleArchives":native])
+            pages.append(["pageIndex":i,"pageLabel":page.label ?? String(i+1),"bounds":[Double(bounds.width),Double(bounds.height)],"rotation":page.rotation,"fingerprint":signature(contentPage),"background":preview(contentPage),"strokes":strokes,"notes":notes])
         }
     }
-    if legacy {warnings.append(["code":"warning.legacy"])}
     var seenWarnings=Set<String>()
     let uniqueWarnings=warnings.filter { warning in
         let key=["code","page","type","detail"].map{String(describing:warning[$0] ?? "")}.joined(separator:"|")
         return seenWarnings.insert(key).inserted
     }
-    try write(["format":"apple-books-notes","version":1,"pageCount":document.pageCount,"legacy":legacy,"pages":pages,"warnings":uniqueWarnings],args[3])
+    try write(["format":"apple-books-notes","version":1,"pageCount":document.pageCount,"pages":pages,"warnings":uniqueWarnings],args[3])
 }
 do {try main()} catch {let output=CommandLine.arguments.count>3 ? CommandLine.arguments[3] : "/dev/null";let native=error as NSError;var result:[String:Any]=["error":error.localizedDescription];if native.domain=="BooksParser"{result["errorCode"]=native.code};try? write(result,output);fputs("\(error)\n",stderr);exit(1)}

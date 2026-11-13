@@ -17,7 +17,7 @@ function updateExisting(){
 }
 async function loadTargetRange(){totalPages=null;const total=await api.pageCount(target());totalPages=total;$('start').value='1';$('end').value=String(total);for(const id of ['start','end'])$(id).max=String(total);$('total').textContent=t('pageTotal',{total});updateExisting();}
 async function checkSelection(){matchedID=null;selectedRange();recalculate();if(!source)return;if(!prepared)throw Error(t('error.settings'));await api.validate(target(),selectedSource());matchedID=target();availability();}
-function availability(){BooksSelects.sync();for(const id of ['import','replace'])$(id).disabled=busy||!prepared?.count||matchedID!==target();for(const id of ['start','end'])$(id).disabled=busy||!totalPages;$('export').disabled=busy||!source?.pages.length;updateExisting();BooksSelects.sync();}
+function availability(){BooksSelects.sync();for(const id of ['import','replace'])$(id).disabled=busy||!prepared?.count||matchedID!==target();for(const id of ['start','end'])$(id).disabled=busy||!totalPages;$('export').disabled=busy||!api.hasArchive();updateExisting();BooksSelects.sync();}
 async function run(task){if(busy)return;busy=true;for(const e of document.querySelectorAll('button,select,input'))if(e.id!=='close')e.disabled=true;try{await task();}catch(e){status(tr.error(e),true);}finally{busy=false;for(const e of document.querySelectorAll('button,select,input'))e.disabled=false;$('page').disabled=!prepared?.pages.length;availability();}}
 function recalculate(){
  try{
@@ -56,11 +56,14 @@ window.addEventListener('DOMContentLoaded',()=>{
  run(async()=>{await loadTargetRange();status(t('chooseHint'));});
  $('parse').onclick=()=>run(async()=>{
   const path=await api.pick(window);if(!path)return;status(t('parsing'));source=null;prepared=null;matchedID=null;availability();
-  const parsed=JSON.parse(JSON.stringify(await api.parse(path,target())));if(!parsed.pages.length)throw Error(t('error.noAnnotations'));source=parsed;source.sourceName=path.split('/').pop();$('source').textContent=source.sourceName;$('source').title=source.sourceName;$('parse').textContent=t('changeSource');
+  drawToken++;$('canvas').hidden=true;$('empty').hidden=false;$('page').replaceChildren();$('summary').textContent='';
+  $('source').textContent=path.split('/').pop();$('source').title=$('source').textContent;
+  await api.select(path);$('parse').textContent=t('changeSource');availability();
+  const parsed=JSON.parse(JSON.stringify(await api.parse(target())));if(!parsed.pages.length)throw Error(t('error.noAnnotations'));source=parsed;
   recalculate();if(!prepared)throw Error(t('error.grouping'));status(t('checking'));
-  await api.validate(target(),selectedSource());matchedID=target();status(source.legacy?t('legacyReady'):source.warnings.length?t('matchedWarnings',{warnings:source.warnings.join('; ')}):t('matched'));
+  await api.validate(target(),selectedSource());matchedID=target();status(source.warnings.length?t('matchedWarnings',{warnings:source.warnings.join('; ')}):t('matched'));
  });
- $('target').onchange=()=>run(async()=>{matchedID=null;await loadTargetRange();await checkSelection();status(source?.legacy?t('legacyReady'):source?t('targetMatched'):t('targetChanged'));});
+ $('target').onchange=()=>run(async()=>{matchedID=null;await loadTargetRange();if(api.hasArchive()){source=null;prepared=null;source=JSON.parse(JSON.stringify(await api.parse(target())));}await checkSelection();status(source?t('targetMatched'):t('targetChanged'));});
  for(const id of ['start','end'])$(id).addEventListener('change',()=>run(async()=>{await checkSelection();status(t('rangeChanged'));}));
  for(const id of ['vertical','horizontal','order'])$(id).addEventListener('change',()=>{recalculate();if(prepared)status(t('groupsChanged'));});
  $('defaults').onclick=()=>{$('vertical').value='3.7';$('horizontal').value='8';$('order').value='vertical-horizontal';recalculate();status(t('defaultsRestored'));};
@@ -71,6 +74,6 @@ window.addEventListener('DOMContentLoaded',()=>{
   status(t(replace?'importedReplace':'importedAppend',{count:n,extra:n!==prepared.count?t('oversize'):''}));updateExisting();
  });
  $('clear').onclick=()=>run(async()=>{const n=await api.clear(window,target(),selectedRange());status(n===null?t('cancelled'):t('cleared',{...selectedRange(),count:n}));});
- $('export').onclick=()=>run(async()=>{if(await api.export(window,source))status(t('exported'));});
+ $('export').onclick=()=>run(async()=>{if(await api.export(window))status(t('exported'));});
  $('close').onclick=()=>window.close();BooksSelects.init();availability();
 });
