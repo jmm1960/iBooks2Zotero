@@ -79,6 +79,7 @@ Chinese source strings are confined to `src/i18n.js`; documentation has a separa
 
 - Flattened/image-only handwriting cannot be restored. Generic PDF Ink without the Apple drawing archive is not currently supported.
 - Rotated pages are not supported. Different PDF editions or mismatched pages block import.
+- Incremental-update history is out of scope: orphaned or overwritten objects left by earlier PDF saves are not imported or exported. The plugin follows the current page and annotation graph; keep the original PDF for historical recovery.
 - Grouping uses geometric gaps, not meaning. Width is approximated per group; pressure, pen texture, and eraser masks may not transfer exactly. Large groups may be split for Zotero's size limit.
 - The Apple archive is a best-effort compatibility format, not a stable official interchange API. Check previews with your own exported files.
 - Files are not uploaded. Only grouping preferences persist; the parser is cached under the Zotero profile, and temporary parse results are removed after reading. No automatic source backup is created.
